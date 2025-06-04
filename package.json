@@ -6,7 +6,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "npx generate prisma && npx prisma db push && node index.js"
+    "start": "node index.js",
+    "start": "node index.js",
+    "postinstall": "prisma generate && prisma db push"
   },
   "author": "Caches",
   "license": "ISC",
