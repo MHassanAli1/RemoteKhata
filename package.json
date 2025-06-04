@@ -1,0 +1,20 @@
+{
+  "name": "khata-cloud-server",
+  "version": "1.0.0",
+  "description": "An express server for syncing local sqlite db of khata with remote postgres one",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "author": "Caches",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^6.9.0",
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "prisma": "^6.9.0"
+  }
+}
