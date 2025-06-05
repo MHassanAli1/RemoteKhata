@@ -39,6 +39,7 @@ app.post('/sync/transactions', async (req, res) => {
             SyncedAt: new Date(),
             trollies: {
               create: txn.trollies?.map(t => ({
+                transactionId: txn.id, // ✅ Add this
                 total: t.total,
                 StartingNum: BigInt(t.StartingNum),
                 EndingNum: BigInt(t.EndingNum),
@@ -48,6 +49,7 @@ app.post('/sync/transactions', async (req, res) => {
             },
             akhrajat: {
               create: txn.akhrajat?.map(a => ({
+                transactionId: txn.id, // ✅ Add this
                 description: a.description,
                 amount: BigInt(a.amount),
               }))
@@ -71,9 +73,11 @@ app.post('/sync/transactions', async (req, res) => {
             updatedAt: new Date(txn.updatedAt),
             Synced: true,
             SyncedAt: new Date(),
+
             trollies: {
               deleteMany: { transactionId: txn.id },
               create: txn.trollies?.map(t => ({
+                transactionId: txn.id, // ✅ Add this
                 total: t.total,
                 StartingNum: BigInt(t.StartingNum),
                 EndingNum: BigInt(t.EndingNum),
@@ -81,9 +85,11 @@ app.post('/sync/transactions', async (req, res) => {
                 updatedAt: new Date(t.updatedAt),
               }))
             },
+
             akhrajat: {
               deleteMany: { transactionId: txn.id },
               create: txn.akhrajat?.map(a => ({
+                transactionId: txn.id, // ✅ Add this
                 description: a.description,
                 amount: BigInt(a.amount),
               }))
@@ -101,10 +107,11 @@ app.post('/sync/transactions', async (req, res) => {
 
     res.status(400).json({ error: 'Invalid request type' });
   } catch (err) {
-    console.error('[SYNC ERROR]', err);
+    console.error('[SYNC ERROR]', err.message, err.stack); // ✅ Print full error
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 app.listen(port, () => {
   console.log('✅ Server started on http://localhost:3000');
