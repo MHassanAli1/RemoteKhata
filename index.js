@@ -1,12 +1,13 @@
 import express from 'express';
 import prisma from './prisma/client.js';
 import authRoutes from './routes/auth.js';
-const port = process.env.PORT || 3000;
 
+const port = process.env.PORT || 3000;
 const app = express();
 app.use(express.json());
 
 app.use('/auth', authRoutes); // e.g. POST /auth/register
+
 app.post('/sync/transactions', async (req, res) => {
   const { type, create = [], update = [], delete: toDelete = [], localIds = [] } = req.body;
 
@@ -20,6 +21,7 @@ app.post('/sync/transactions', async (req, res) => {
     }
 
     if (type === 'sync') {
+      // Handle CREATE
       for (const txn of create) {
         await prisma.transaction.create({
           data: {
@@ -39,7 +41,6 @@ app.post('/sync/transactions', async (req, res) => {
             SyncedAt: new Date(),
             trollies: {
               create: txn.trollies?.map(t => ({
-                transactionId: txn.id, // ✅ Add this
                 total: t.total,
                 StartingNum: BigInt(t.StartingNum),
                 EndingNum: BigInt(t.EndingNum),
@@ -49,7 +50,6 @@ app.post('/sync/transactions', async (req, res) => {
             },
             akhrajat: {
               create: txn.akhrajat?.map(a => ({
-                transactionId: txn.id, // ✅ Add this
                 description: a.description,
                 amount: BigInt(a.amount),
               }))
@@ -58,7 +58,12 @@ app.post('/sync/transactions', async (req, res) => {
         });
       }
 
+      // Handle UPDATE
       for (const txn of update) {
+        // Delete old nested data first
+        await prisma.trolly.deleteMany({ where: { transactionId: txn.id } });
+        await prisma.akhrajat.deleteMany({ where: { transactionId: txn.id } });
+
         await prisma.transaction.update({
           where: { id: txn.id },
           data: {
@@ -73,11 +78,8 @@ app.post('/sync/transactions', async (req, res) => {
             updatedAt: new Date(txn.updatedAt),
             Synced: true,
             SyncedAt: new Date(),
-
             trollies: {
-              deleteMany: { transactionId: txn.id },
               create: txn.trollies?.map(t => ({
-                transactionId: txn.id, // ✅ Add this
                 total: t.total,
                 StartingNum: BigInt(t.StartingNum),
                 EndingNum: BigInt(t.EndingNum),
@@ -85,11 +87,8 @@ app.post('/sync/transactions', async (req, res) => {
                 updatedAt: new Date(t.updatedAt),
               }))
             },
-
             akhrajat: {
-              deleteMany: { transactionId: txn.id },
               create: txn.akhrajat?.map(a => ({
-                transactionId: txn.id, // ✅ Add this
                 description: a.description,
                 amount: BigInt(a.amount),
               }))
@@ -98,6 +97,7 @@ app.post('/sync/transactions', async (req, res) => {
         });
       }
 
+      // Handle DELETE
       if (toDelete.length > 0) {
         await prisma.transaction.deleteMany({ where: { id: { in: toDelete } } });
       }
@@ -107,11 +107,10 @@ app.post('/sync/transactions', async (req, res) => {
 
     res.status(400).json({ error: 'Invalid request type' });
   } catch (err) {
-    console.error('[SYNC ERROR]', err.message, err.stack); // ✅ Print full error
+    console.error('[SYNC ERROR]', err.message, err.stack);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 
 app.listen(port, () => {
   console.log('✅ Server started on http://localhost:3000');
