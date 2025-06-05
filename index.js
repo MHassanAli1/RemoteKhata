@@ -1,117 +1,77 @@
 import express from 'express';
-import prisma from './prisma/client.js';
-import authRoutes from './routes/auth.js';
+import prisma from './prisma/client.js'; // Adjust path as needed
 
-const port = process.env.PORT || 3000;
-const app = express();
-app.use(express.json());
+const router = express.Router();
 
-app.use('/auth', authRoutes); // e.g. POST /auth/register
-
-app.post('/sync/transactions', async (req, res) => {
-  const { type, create = [], update = [], delete: toDelete = [], localIds = [] } = req.body;
-
+router.post('/sync/transactions', async (req, res) => {
   try {
+    const { type, localIds = [], create = [], update = [], delete: toDelete = [] } = req.body;
+
     if (type === 'get') {
-      const cloudTxns = await prisma.transaction.findMany({
+      // Send back only IDs and SyncedAt fields
+      const existing = await prisma.transaction.findMany({
         where: { id: { in: localIds } },
-        select: { id: true }
+        select: { id: true, SyncedAt: true }
       });
-      return res.json(cloudTxns);
+      return res.json(existing);
     }
 
     if (type === 'sync') {
-      // Handle CREATE
+      // === CREATE ===
       for (const txn of create) {
+        const { trollies, akhrajat, ...txnData } = txn;
+
         await prisma.transaction.create({
           data: {
-            id: txn.id,
-            userID: txn.userID,
-            ZoneName: txn.ZoneName,
-            KhdaName: txn.KhdaName,
-            KulAmdan: BigInt(txn.KulAmdan),
-            date: new Date(txn.date),
-            KulAkhrajat: BigInt(txn.KulAkhrajat),
-            SaafiAmdan: BigInt(txn.SaafiAmdan),
-            Exercise: BigInt(txn.Exercise),
-            KulMaizan: BigInt(txn.KulMaizan),
-            createdAt: new Date(txn.createdAt),
-            updatedAt: new Date(txn.updatedAt),
-            Synced: true,
-            SyncedAt: new Date(),
+            ...txnData,
             trollies: {
-              create: txn.trollies?.map(t => ({
-                total: t.total,
-                StartingNum: BigInt(t.StartingNum),
-                EndingNum: BigInt(t.EndingNum),
-                createdAt: new Date(t.createdAt),
-                updatedAt: new Date(t.updatedAt),
-              }))
+              create: trollies ?? []
             },
             akhrajat: {
-              create: txn.akhrajat?.map(a => ({
-                description: a.description,
-                amount: BigInt(a.amount),
-              }))
+              create: akhrajat ?? []
             }
           }
         });
       }
 
-      // Handle UPDATE
+      // === UPDATE ===
       for (const txn of update) {
-        // Delete old nested data first
+        const { trollies, akhrajat, ...txnData } = txn;
+
+        // Delete existing nested items to simplify update logic
         await prisma.trolly.deleteMany({ where: { transactionId: txn.id } });
         await prisma.akhrajat.deleteMany({ where: { transactionId: txn.id } });
 
         await prisma.transaction.update({
           where: { id: txn.id },
           data: {
-            ZoneName: txn.ZoneName,
-            KhdaName: txn.KhdaName,
-            KulAmdan: BigInt(txn.KulAmdan),
-            date: new Date(txn.date),
-            KulAkhrajat: BigInt(txn.KulAkhrajat),
-            SaafiAmdan: BigInt(txn.SaafiAmdan),
-            Exercise: BigInt(txn.Exercise),
-            KulMaizan: BigInt(txn.KulMaizan),
-            updatedAt: new Date(txn.updatedAt),
-            Synced: true,
-            SyncedAt: new Date(),
+            ...txnData,
             trollies: {
-              create: txn.trollies?.map(t => ({
-                total: t.total,
-                StartingNum: BigInt(t.StartingNum),
-                EndingNum: BigInt(t.EndingNum),
-                createdAt: new Date(t.createdAt),
-                updatedAt: new Date(t.updatedAt),
-              }))
+              create: trollies ?? []
             },
             akhrajat: {
-              create: txn.akhrajat?.map(a => ({
-                description: a.description,
-                amount: BigInt(a.amount),
-              }))
+              create: akhrajat ?? []
             }
           }
         });
       }
 
-      // Handle DELETE
-      if (toDelete.length > 0) {
-        await prisma.transaction.deleteMany({ where: { id: { in: toDelete } } });
+      // === DELETE ===
+      for (const id of toDelete) {
+        await prisma.transaction.delete({
+          where: { id }
+        });
       }
 
-      return res.json({ status: 'ok' });
+      return res.json({ success: true });
     }
 
-    res.status(400).json({ error: 'Invalid request type' });
+    return res.status(400).json({ error: 'Invalid sync type' });
+
   } catch (err) {
-    console.error('[SYNC ERROR]', err.message, err.stack);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('[CLOUD SYNC ERROR]', err);
+    return res.status(500).json({ error: 'Internal Server Error', detail: err.message });
   }
 });
 
-app.listen(port, () => {
-  console.log('✅ Server started on http://localhost:3000');
-});
+export default router;
